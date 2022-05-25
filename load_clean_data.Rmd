@@ -1,0 +1,163 @@
+---
+title: "Load data and cleaning"
+author: "Justin Williams"
+date: "5/22/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load-packages, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(vroom)
+library(sf)
+library(tigris)
+library(leaflet)
+library(htmlwidgets)
+```
+
+Set working directory
+
+```{r setwd}
+setwd("/Users/justinwilliams/projects/nyc_covid_tracker")
+```
+
+## Load in Covid data.
+
+Download master repo from NYC DoH Github.
+
+```{r doh-github}
+download.file(url = 
+    "https://github.com/nychealth/coronavirus-data/archive/refs/heads/master.zip",
+    destfile = "covid_data_master.zip")
+
+unzip(zipfile = "covid_data_master.zip")
+```
+
+This is only at the borough level. For MODZCTA will need to read from raw csv in github.
+
+### NYC DOHMH Github data
+
+**trends** - sort through trends folder to see what data will actually be useful for this analysis.
+
+*Summary Numbers*
+- `antibody-by-week.csv` could be useful in quantifying percent positive per date (in full weeks Sun-Sat), however only goes bock too *April 11th, 2020*. 
+- `cases-by-day.csv` could be useful to calculate overall case amount when slider is moved for date range.
+
+*Geography*
+- `caserate-by-modzcta.csv` this has rate of cases per 100,000 people by week and modzcta so could help for case rate, but not count. Could have graduated symbology be case rate or choropleth colors.
+- `test-rate-by-modzcta.csv` - rate of molecular testing per 100,000 people stratified by week. 
+- `percentpositve-by-modzcta.csv` - percent of people who tested positive with a molecular test stratified by week.
+
+### Load in data
+
+Load in some .csv data
+
+```{r load-data}
+caserate <- vroom("./coronavirus-data-master/trends/caserate-by-modzcta.csv")
+testrate <- vroom("./coronavirus-data-master/trends/testrate-by-modzcta.csv")
+percentpos <- vroom("./coronavirus-data-master/trends/percentpositive-by-modzcta.csv")
+```
+
+Load in MODZCTA geography
+
+```{r MODACTA-geography}
+modzcta <-  st_read("./coronavirus-data-master/Geography-resources/MODZCTA_2010.shp")
+
+zcta_conv <- vroom("./coronavirus-data-master/Geography-resources/ZCTA-to-MODZCTA.csv", delim = ",")
+```
+
+### Clean Data
+
+Delete columns and pivot longer.
+
+Build function.
+
+```{r drop-col-pivot}
+# function to drop columns and pivot longer
+pivot_covid_long <- function(df, names_prefix, values_to) {
+  df %>% 
+    select(-c(2:7)) %>% 
+    pivot_longer(2:178, names_to = "modzcta",
+                 names_prefix = names_prefix,
+                 values_to = values_to)
+}
+
+# apply to dfs
+caserates_long <- pivot_covid_long(caserate, names_prefix = "CASERATE_", 
+                              values_to = "caserate")
+testrates_long <- pivot_covid_long(testrate, names_prefix = "TESTRATE_",
+                              values_to = "testrate")
+percpos_long <- pivot_covid_long(percentpos, names_prefix = "PCTPOS_",
+                            values_to = "percpos")
+```
+
+Join df's
+
+```{r join-format}
+# join all df's
+all <-caserates_long %>% 
+  left_join(percpos_long, by = c("week_ending", "modzcta")) %>% 
+  left_join(testrates_long, by = c("week_ending", "modzcta"))
+```
+
+Add in spatial data.
+
+```{r try-diff-join}
+?merge.sf()
+
+```
+
+
+```{r join-spatial-data, warning=FALSE}
+# join with modzcta
+all_sf <-geo_join(modzcta, all, 
+                  "MODZCTA","modzcta",
+                  how = "inner")
+
+# convert week ending column to date
+all_sf$week_ending <- as.Date(all_sf$week_ending, format = "%m/%d/%Y")
+```
+
+### Leaflet map
+
+Write code for leaflet map prior to creating Shiny App
+
+```{r leaflet-map}
+leaflet() %>% 
+  addTiles() %>% 
+  addPolygons(data =st_transform(all_sf, 4326))
+```
+
+```{r}
+all_sf %>%
+  st_transform(4326) %>% 
+  ggplot() +
+    geom_sf()
+
+modzcta %>%
+  ggplot() +
+    geom_sf()
+
+all_sf %>% 
+  ggplot() +
+    geom_sf()
+
+view(all_sf)
+modzcta
+```
+
+
+
+### How to design Shiny App
+
+  - sliderbar on bottom with week ending?
+  - 3 tabs for case, test and perc pos.
+  - legend should have about 5 breaks?
+  - maybe a line graph as well for total cases in another tab?
+  - total death count? Hosp count?
+  - possibly graduated symbology?
+
+
