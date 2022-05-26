@@ -14,8 +14,11 @@ library(tidyverse)
 library(vroom)
 library(sf)
 library(tigris)
+options(tigris_use_cache = TRUE)
 library(leaflet)
 library(htmlwidgets)
+library(RSocrata)
+library(dotenv)
 ```
 
 Set working directory
@@ -67,6 +70,10 @@ Load in MODZCTA geography
 modzcta <-  st_read("./coronavirus-data-master/Geography-resources/MODZCTA_2010.shp")
 
 zcta_conv <- vroom("./coronavirus-data-master/Geography-resources/ZCTA-to-MODZCTA.csv", delim = ",")
+
+# read from nyc open data
+# this get population and zcta
+modzcta_3 <-st_read("https://data.cityofnewyork.us/resource/pri4-ifjk.geojson")
 ```
 
 ### Clean Data
@@ -105,12 +112,6 @@ all <-caserates_long %>%
 
 Add in spatial data.
 
-```{r try-diff-join}
-?merge.sf()
-
-```
-
-
 ```{r join-spatial-data, warning=FALSE}
 # join with modzcta
 all_sf <-geo_join(modzcta, all, 
@@ -123,33 +124,46 @@ all_sf$week_ending <- as.Date(all_sf$week_ending, format = "%m/%d/%Y")
 
 ### Leaflet map
 
-Write code for leaflet map prior to creating Shiny App
+Write code for leaflet map prior to creating Shiny App.
+Redo this for just one week-ending, its too much data and takes forever to render.
 
 ```{r leaflet-map}
-leaflet() %>% 
-  addTiles() %>% 
-  addPolygons(data =st_transform(all_sf, 4326))
+# segment for week ending 2022-01-01
+all_sf_jan_01_22 <- all_sf[all_sf$week_ending == "2022-01-01",]
+
+# set labels
+labels <- sprintf(
+  "<strong>%s</strong><br/>%g cases per 100,000 people",
+  all_sf_jan_01_22$MODZCTA, all_sf_jan_01_22$caserate) %>% 
+  lapply(htmltools::HTML)
+
+# set color palette
+pal <- colorBin(palette = "PuBu", bins = 9, domain = all_sf_jan_01_22$caserate)
+
+# plot map
+leaflet_map <- all_sf_jan_01_22 %>% 
+   st_transform(4326) %>% 
+   leaflet() %>% 
+   addProviderTiles(providers$CartoDB.Positron) %>% 
+   addPolygons(label = labels,
+               stroke = F,
+               smoothFactor = 0.5,
+               opacity = 1,
+               fillOpacity = 0.8,
+               fillColor = pal(all_sf_jan_01_22$caserate),
+               highlightOptions = highlightOptions(weight = 2,
+                                                   fill = 1,
+                                                   color = "white",
+                                                   bringToFront = TRUE)) %>% 
+  addLegend("bottomright",
+            pal = pal,
+            values = ~caserate,
+            title = "Cases per 100,000",
+            opacity = 0.7)
+
+
+leaflet_map
 ```
-
-```{r}
-all_sf %>%
-  st_transform(4326) %>% 
-  ggplot() +
-    geom_sf()
-
-modzcta %>%
-  ggplot() +
-    geom_sf()
-
-all_sf %>% 
-  ggplot() +
-    geom_sf()
-
-view(all_sf)
-modzcta
-```
-
-
 
 ### How to design Shiny App
 
