@@ -17,6 +17,8 @@ library(tigris)
 options(tigris_use_cache = TRUE)
 library(leaflet)
 library(htmlwidgets)
+library(BAMMtools)
+library(tmap)
 library(RSocrata)
 library(dotenv)
 ```
@@ -134,27 +136,36 @@ all_sf_jan_01_22 <- all_sf[all_sf$week_ending == "2022-01-01",]
 # set labels
 labels <- sprintf(
   "<strong>%s</strong><br/>%g cases per 100,000 people",
-  all_sf_jan_01_22$MODZCTA, all_sf_jan_01_22$caserate) %>% 
+  all_sf_jan_01_22$MODZCTA, round(all_sf_jan_01_22$caserate)) %>% 
   lapply(htmltools::HTML)
 
+# set bins
+bins <- getJenksBreaks(all_sf_jan_01_22$caserate, 6) # get natural breaks
+bins <- map(.x = bins, round) %>% 
+  unlist() # round
+
 # set color palette
-pal <- colorBin(palette = "PuBu", bins = 9, domain = all_sf_jan_01_22$caserate)
+pal <- colorBin(palette = "PuBu",
+                bins = bins, 
+                domain = all_sf_jan_01_22$caserate)
 
 # plot map
 leaflet_map <- all_sf_jan_01_22 %>% 
    st_transform(4326) %>% 
-   leaflet() %>% 
+   leaflet() %>%
+   setView(lng = -74.0060,lat = 40.7128,zoom = 10) %>% 
    addProviderTiles(providers$CartoDB.Positron) %>% 
    addPolygons(label = labels,
-               stroke = F,
+               weight = 0.25,
+               color = "white",
                smoothFactor = 0.5,
                opacity = 1,
-               fillOpacity = 0.8,
+               fillOpacity = 0.7,
                fillColor = pal(all_sf_jan_01_22$caserate),
-               highlightOptions = highlightOptions(weight = 2,
-                                                   fill = 1,
-                                                   color = "white",
-                                                   bringToFront = TRUE)) %>% 
+               highlightOptions = highlightOptions(weight = 1,
+                                                   color = "#666",
+                                                   fillOpacity = 0.7,
+                                                   bringToFront = T)) %>% 
   addLegend("bottomright",
             pal = pal,
             values = ~caserate,
@@ -163,6 +174,78 @@ leaflet_map <- all_sf_jan_01_22 %>%
 
 
 leaflet_map
+```
+
+### Create custom projection
+
+I can't seem to get a basemap in 2263, will have to come back to this.
+Will see if I can make a version in **tmap** in 2263
+```{r custom-proj}
+# epsg2263 <- leafletCRS(crsClass = "L.Proj.CRS", code = "EPSG:2263",
+#   proj4def = "+proj=lcc +lat_1=41.03333333333333 +lat_2=40.66666666666666 +lat_0=40.16666666666666 +lon_0=-74 +x_0=300000.0000000001 +y_0=0 +ellps=GRS80 +datum=NAD83 +to_meter=0.3048006096012192 +no_defs",
+#   resolutions = 2^(13:-1),
+#   origin = c(0, 0)
+# )
+# 
+# # plot map
+# leaflet_map_2263 <- all_sf_jan_01_22 %>% 
+#    leaflet(options = leafletOptions(crs = epsg2263)) %>% 
+#    addProviderTiles(providers$CartoDB.Positron) %>% 
+#    addPolygons(label = labels,
+#                weight = 0.25,
+#                color = "white",
+#                smoothFactor = 0.5,
+#                opacity = 1,
+#                fillOpacity = 0.7,
+#                fillColor = pal(all_sf_jan_01_22$caserate),
+#                highlightOptions = highlightOptions(weight = 1,
+#                                                    color = "#666",
+#                                                    fillOpacity = 0.7,
+#                                                    bringToFront = T)) %>% 
+#   addLegend("bottomright",
+#             pal = pal,
+#             values = ~caserate,
+#             title = "Cases per 100,000",
+#             opacity = 0.7)
+# 
+# leaflet_map_2263
+
+```
+
+### TMAP version
+
+Ok they access the same basemaps as leaflet, and 2263 is not available.
+
+```{r tmap}
+tmap_mode("view")
+
+tm_shape(all_sf_jan_01_22) +
+  tm_fill(col = "caserate",
+          palette = "PuBu",
+          alpha = 0.7,
+          title = "Cases per 100,000",
+          popup.vars = c("MODZCTA" = "MODZCTA"),
+          legend.format = scales::comma_format(),
+          style = "jenks") +
+  tm_polygons(border.col = "white",
+              border.alpha = 0.7,
+              lwd = 0.5) +
+  tm_layout(title = "Case rate per 100,000 Week Ending Jan 1, 2022") +
+  tm_scale_bar() +
+  tm_view(projection = 2263)
+
+```
+
+### Export 
+
+Export dataframe for use in Shiny App.
+
+```{r export-data}
+saveRDS(all_sf, file = "./nyc_covid_tracker_app/all_sf.rds")
+```
+
+```{r}
+glimpse(all_sf)
 ```
 
 ### How to design Shiny App
