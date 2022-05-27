@@ -6,6 +6,7 @@
 .RData
 .Rproj
 .env
+.zip
 
 # User-specific files
 .Ruserdata
