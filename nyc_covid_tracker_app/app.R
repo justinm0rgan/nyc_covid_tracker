@@ -11,11 +11,12 @@ library(shiny)
 library(tidyverse)
 library(leaflet)
 library(htmlwidgets)
+library(BAMMtools)
 
 setwd("/Users/justinwilliams/projects/nyc_covid_tracker/nyc_covid_tracker_app/")
 all_sf <- readRDS("all_sf.rds")
 
-# Define UI for application that draws a histogram
+# Define UI for application 
 ui <- fluidPage(
 
     # Application title
@@ -33,7 +34,7 @@ ui <- fluidPage(
                         choices = unique(all_sf$week_ending)
             )
         ),
-        # Show a plot of the generated distribution
+        # define panels
         mainPanel(
           tabsetPanel(
             tabPanel("Case Rate", leafletOutput("cases")),
@@ -43,7 +44,7 @@ ui <- fluidPage(
         )
     )
   )
-# Define server logic required to draw a histogram
+# Define server logic required to draw maps
 server <- function(input, output) {
   
     week_zcta <- reactive({
@@ -71,7 +72,7 @@ server <- function(input, output) {
     week_zcta() %>% 
       st_transform(4326) %>% 
       leaflet() %>%
-      setView(lng = -73.9,lat = 40.7,zoom = 10) %>% 
+      setView(lng = -73.9,lat = 40.705,zoom = 10) %>% 
       addProviderTiles(providers$CartoDB.Positron) %>% 
       addPolygons(label = labels,
                   weight = 0.25,
@@ -112,7 +113,7 @@ server <- function(input, output) {
     week_zcta() %>% 
       st_transform(4326) %>% 
       leaflet() %>%
-      setView(lng = -73.9,lat = 40.7,zoom = 10) %>% 
+      setView(lng = -73.9,lat = 40.705,zoom = 10) %>% 
       addProviderTiles(providers$CartoDB.Positron) %>% 
       addPolygons(label = labels,
                   weight = 0.25,
@@ -153,7 +154,7 @@ server <- function(input, output) {
     week_zcta() %>% 
       st_transform(4326) %>% 
       leaflet() %>%
-      setView(lng = -73.9,lat = 40.7,zoom = 10) %>% 
+      setView(lng = -73.9,lat = 40.705,zoom = 10) %>% 
       addProviderTiles(providers$CartoDB.Positron) %>% 
       addPolygons(label = labels,
                   weight = 0.25,
