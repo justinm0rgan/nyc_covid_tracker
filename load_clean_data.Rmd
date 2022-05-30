@@ -18,7 +18,6 @@ options(tigris_use_cache = TRUE)
 library(leaflet)
 library(htmlwidgets)
 library(BAMMtools)
-library(tmap)
 library(RSocrata)
 library(dotenv)
 ```
@@ -34,55 +33,76 @@ setwd("/Users/justinwilliams/projects/nyc_covid_tracker")
 Download master repo from NYC DoH Github.
 
 ```{r doh-github}
+# download data
 download.file(url = 
     "https://github.com/nychealth/coronavirus-data/archive/refs/heads/master.zip",
     destfile = "covid_data_master.zip")
 
+# unzip file
 unzip(zipfile = "covid_data_master.zip")
 ```
 
-This is only at the borough level. For MODZCTA will need to read from raw csv in github.
-
 ### NYC DOHMH Github data
 
-**trends** - sort through trends folder to see what data will actually be useful for this analysis.
+Sort through the following folders to see what data will actually be useful for this analysis.
+
+**trends** 
+*Weekly Data by Zip Code*
+Would like choropleth maps with reactive selection box for each of the following. Also would like a sliderinput for week ending date. There could be a drop down within the tab
+- `percentpositve-by-modzcta.csv` - percent of people who tested positive with a molecular test stratified by week.
+- `caserate-by-modzcta.csv` this has rate of cases per 100,000 people by week and modzcta so could help for case rate, but not count. Could have graduated symbology be case rate or choropleth colors.
+- `test-rate-by-modzcta.csv` - rate of molecular testing per 100,000 people stratified by week.
 
 *Summary Numbers*
-- `antibody-by-week.csv` could be useful in quantifying percent positive per date (in full weeks Sun-Sat), however only goes bock too *April 11th, 2020*. 
-- `cases-by-day.csv` could be useful to calculate overall case amount when slider is moved for date range.
+The idea is these number would be in a sidebar the entire time.
+Cases
+Deaths
+Date
+New Cases bar graph
+Cumulative cases line chart
+- `cases-by-day.csv` 
+  - would be good for bar graph detailing new cases.
+  - also works for cumulative line graph
+- `summary.csv` - the has total case counts and deaths
 
-*Geography*
-- `caserate-by-modzcta.csv` this has rate of cases per 100,000 people by week and modzcta so could help for case rate, but not count. Could have graduated symbology be case rate or choropleth colors.
-- `test-rate-by-modzcta.csv` - rate of molecular testing per 100,000 people stratified by week. 
-- `percentpositve-by-modzcta.csv` - percent of people who tested positive with a molecular test stratified by week.
+**latest**
+*Latest Data by Zip Code*
+Could be used for Percent Positive (7-day), Test Rate (7-day), Hosp (28-day) and Death Rate (28-day) choropleth maps. Drop down within tab?
+- `last7days-by-modzcta.csv` - has lat long 7 day pp rate along with people_tested, people_positive, median_daily_test_rate, adequately_tested (boolean) and daterange. 
+- `hosp_death_last28days-by-modzcta.csv` - hosp/death count 28 day and hosp/death rate 28 day, daterange
 
 ### Load in data
 
 Load in some .csv data
 
 ```{r load-data}
+# for weekly maps tab
 caserate <- vroom("./coronavirus-data-master/trends/caserate-by-modzcta.csv")
 testrate <- vroom("./coronavirus-data-master/trends/testrate-by-modzcta.csv")
 percentpos <- vroom("./coronavirus-data-master/trends/percentpositive-by-modzcta.csv")
+
+# for summary sidebar
+casesbyday <- vroom("./coronavirus-data-master/trends/cases-by-day.csv")
+summary_totals <- vroom("./coronavirus-data-master/totals/summary.csv",
+                        delim = ",")
+
+# for latest tab
+last7days <- vroom("./coronavirus-data-master/latest/last7days-by-modzcta.csv")
+last28days <- vroom("./coronavirus-data-master/latest/hosp_death_last28days-by-modzcta.csv")
 ```
 
-Load in MODZCTA geography
+Load in MODZCTA geography from NYC Open Data.
 
-```{r MODACTA-geography}
-modzcta <-  st_read("./coronavirus-data-master/Geography-resources/MODZCTA_2010.shp")
-
-zcta_conv <- vroom("./coronavirus-data-master/Geography-resources/ZCTA-to-MODZCTA.csv", delim = ",")
-
+```{r MODACTA-geography, message=FALSE}
 # read from nyc open data
-# this get population and zcta
-modzcta_3 <-st_read("https://data.cityofnewyork.us/resource/pri4-ifjk.geojson")
+# this has population and zcta
+modzcta <-st_read("https://data.cityofnewyork.us/resource/pri4-ifjk.geojson")
 ```
 
 ### Clean Data
+#### Weekly Data
 
 Delete columns and pivot longer.
-
-Build function.
 
 ```{r drop-col-pivot}
 # function to drop columns and pivot longer
@@ -106,10 +126,15 @@ percpos_long <- pivot_covid_long(percentpos, names_prefix = "PCTPOS_",
 Join df's
 
 ```{r join-format}
+# subset df with neigborhood names first to join with neighborhood names
+modzcta_name <-  last7days[,c("modzcta","modzcta_name")]
+modzcta_name$modzcta <- as.character(modzcta_name$modzcta)
+
 # join all df's
 all <-caserates_long %>% 
   left_join(percpos_long, by = c("week_ending", "modzcta")) %>% 
-  left_join(testrates_long, by = c("week_ending", "modzcta"))
+  left_join(testrates_long, by = c("week_ending", "modzcta")) %>% 
+  left_join(modzcta_name)
 ```
 
 Add in spatial data.
@@ -117,14 +142,55 @@ Add in spatial data.
 ```{r join-spatial-data, warning=FALSE}
 # join with modzcta
 all_sf <-geo_join(modzcta, all, 
-                  "MODZCTA","modzcta",
+                  "modzcta","modzcta",
                   how = "inner")
 
 # convert week ending column to date
 all_sf$week_ending <- as.Date(all_sf$week_ending, format = "%m/%d/%Y")
 ```
 
-### Leaflet map
+
+**latest**
+*Latest Data by Zip Code*
+Could be used for Percent Positive (7-day), Test Rate (7-day), Hosp (28-day) and Death Rate (28-day) choropleth maps. Drop down within tab?
+- `last7days-by-modzcta.csv` - has lat long 7 day pp rate along with people_tested, people_positive, median_daily_test_rate, adequately_tested (boolean) and daterange. 
+- `hosp_death_last28days-by-modzcta.csv` - hosp/death count 28 day and hosp/death rate 28 day, daterange
+
+#### Latest Data by Zip Code
+
+Let's join this to the spatial data so we can map it. Data is clean, needs no other modifications.
+
+```{r last-7-join-modzcta}
+# convert modzcta to char
+last7days$modzcta <- as.character(last7days$modzcta)
+#drop label
+last7days <- last7days %>% 
+  select(-c("label"))
+
+# join with spatial df
+all_sf_7 <- geo_join(modzcta, last7days, 
+              "modzcta","modzcta",
+              how = "inner")
+```
+
+Let's also join 28 day data with spatial data.
+
+```{r last-28-day-spatial}
+# convert modzcta to char
+last28days$modzcta <- as.character(last28days$modzcta)
+#drop label
+last28days <- last28days %>% 
+  select(-c("label"))
+
+# join with spatial df
+all_sf_28 <- geo_join(modzcta, last28days, 
+              "modzcta","modzcta",
+              how = "inner")
+```
+
+### Leaflet map 
+
+#### Weekly data
 
 Write code for leaflet map prior to creating Shiny App.
 Redo this for just one week-ending, its too much data and takes forever to render.
@@ -135,8 +201,9 @@ all_sf_jan_01_22 <- all_sf[all_sf$week_ending == "2022-01-01",]
 
 # set labels
 labels <- sprintf(
-  "<strong>%s</strong><br/>%g cases per 100,000 people",
-  all_sf_jan_01_22$MODZCTA, round(all_sf_jan_01_22$caserate)) %>% 
+  "<h3>%s</h3><br/><strong>Zip Code: </strong>%s<br/><strong>Cases per 100,000 people: </strong>%g ",
+  all_sf_jan_01_22$modzcta_name,
+  all_sf_jan_01_22$label, round(all_sf_jan_01_22$caserate)) %>% 
   lapply(htmltools::HTML)
 
 # set bins
@@ -176,85 +243,116 @@ leaflet_map <- all_sf_jan_01_22 %>%
 leaflet_map
 ```
 
-### Create custom projection
+#### Latest Data maps
 
-I can't seem to get a basemap in 2263, will have to come back to this.
-Will see if I can make a version in **tmap** in 2263
-```{r custom-proj}
-# epsg2263 <- leafletCRS(crsClass = "L.Proj.CRS", code = "EPSG:2263",
-#   proj4def = "+proj=lcc +lat_1=41.03333333333333 +lat_2=40.66666666666666 +lat_0=40.16666666666666 +lon_0=-74 +x_0=300000.0000000001 +y_0=0 +ellps=GRS80 +datum=NAD83 +to_meter=0.3048006096012192 +no_defs",
-#   resolutions = 2^(13:-1),
-#   origin = c(0, 0)
-# )
-# 
-# # plot map
-# leaflet_map_2263 <- all_sf_jan_01_22 %>% 
-#    leaflet(options = leafletOptions(crs = epsg2263)) %>% 
-#    addProviderTiles(providers$CartoDB.Positron) %>% 
-#    addPolygons(label = labels,
-#                weight = 0.25,
-#                color = "white",
-#                smoothFactor = 0.5,
-#                opacity = 1,
-#                fillOpacity = 0.7,
-#                fillColor = pal(all_sf_jan_01_22$caserate),
-#                highlightOptions = highlightOptions(weight = 1,
-#                                                    color = "#666",
-#                                                    fillOpacity = 0.7,
-#                                                    bringToFront = T)) %>% 
-#   addLegend("bottomright",
-#             pal = pal,
-#             values = ~caserate,
-#             title = "Cases per 100,000",
-#             opacity = 0.7)
-# 
-# leaflet_map_2263
+Create choropleth maps with latest data.
 
+```{r 7-day-map}
+# set labels
+labels <- sprintf(
+  "<h3>%s</h3><br/><strong>Zip Code: </strong>%s<br/><strong>7-day percent positive: </strong>%g%% ",
+  all_sf_7$modzcta_name,
+  all_sf_7$label, all_sf_7$percentpositivity_7day) %>% 
+  lapply(htmltools::HTML)
+
+# set bins
+bins <- getJenksBreaks(all_sf_7$percentpositivity_7day, 6) # get natural breaks
+bins <- map(.x = bins, round) %>% 
+  unlist() # round
+
+# set color palette
+pal <- colorBin(palette = "PuBu",
+                bins = bins, 
+                domain = all_sf_7$percentpositivity_7day)
+
+# plot map
+leaflet_map <- all_sf_7 %>% 
+   st_transform(4326) %>% 
+   leaflet() %>%
+   setView(lng = -74.0060,lat = 40.7128,zoom = 10) %>% 
+   addProviderTiles(providers$CartoDB.Positron) %>% 
+   addPolygons(label = labels,
+               weight = 0.25,
+               color = "white",
+               smoothFactor = 0.5,
+               opacity = 1,
+               fillOpacity = 0.7,
+               fillColor = pal(all_sf_7$percentpositivity_7day),
+               highlightOptions = highlightOptions(weight = 1,
+                                                   color = "#666",
+                                                   fillOpacity = 0.7,
+                                                   bringToFront = T)) %>% 
+  addLegend("bottomright",
+            pal = pal,
+            values = ~caserate,
+            title = "7-day percent positive",
+            opacity = 0.7,
+            labFormat = labelFormat(suffix = "%"))
+
+
+leaflet_map
 ```
 
-### TMAP version
+28-day map
 
-Ok they access the same basemaps as leaflet, and 2263 is not available.
+```{r 28-day-hosp-map}
+# set labels
+labels <- sprintf(
+  "<h3>%s</h3><br/><strong>Zip Code: </strong>%s<br><strong>Hospitalization rate per 100,000 people: </strong>%g <br><strong>Hospitalization Count: </strong>%g",
+  all_sf_28$modzcta_name,
+  all_sf_28$label, all_sf_28$hospitalization_rate_28day,
+  all_sf_28$hospitalization_count_28day) %>% 
+  lapply(htmltools::HTML)
 
-```{r tmap}
-tmap_mode("view")
+# set bins
+bins <- getJenksBreaks(all_sf_28$hospitalization_rate_28day, 5) # get natural breaks
+bins <- map(.x = bins, round) %>% 
+  unlist() # round
 
-tm_shape(all_sf_jan_01_22) +
-  tm_fill(col = "caserate",
-          palette = "PuBu",
-          alpha = 0.7,
-          title = "Cases per 100,000",
-          popup.vars = c("MODZCTA" = "MODZCTA"),
-          legend.format = scales::comma_format(),
-          style = "jenks") +
-  tm_polygons(border.col = "white",
-              border.alpha = 0.7,
-              lwd = 0.5) +
-  tm_layout(title = "Case rate per 100,000 Week Ending Jan 1, 2022") +
-  tm_scale_bar() +
-  tm_view(projection = 2263)
+# set color palette
+pal <- colorBin(palette = "PuBu",
+                bins = bins, 
+                domain = all_sf_28$hospitalization_rate_28day)
 
+# plot map
+leaflet_map <- all_sf_7 %>% 
+   st_transform(4326) %>% 
+   leaflet() %>%
+   setView(lng = -74.0060,lat = 40.7128,zoom = 10) %>% 
+   addProviderTiles(providers$CartoDB.Positron) %>% 
+   addPolygons(label = labels,
+               weight = 0.25,
+               color = "white",
+               smoothFactor = 0.5,
+               opacity = 1,
+               fillOpacity = 0.7,
+               fillColor = pal(all_sf_28$hospitalization_rate_28day),
+               highlightOptions = highlightOptions(weight = 1,
+                                                   color = "#666",
+                                                   fillOpacity = 0.7,
+                                                   bringToFront = T)) %>% 
+  addLegend("bottomright",
+            pal = pal,
+            values = ~caserate,
+            title = "Hospitalizations per 100,000 people",
+            opacity = 0.7)
+
+
+leaflet_map
 ```
+
+
 
 ### Export 
 
-Export dataframe for use in Shiny App.
+Export data frame for use in Shiny App.
 
 ```{r export-data}
+# sort with by date to have most current date first
+all_sf <- all_sf %>% 
+  arrange(desc(week_ending))
+
+# save for use in shiny app
 saveRDS(all_sf, file = "./nyc_covid_tracker_app/all_sf.rds")
 ```
-
-```{r}
-glimpse(all_sf)
-```
-
-### How to design Shiny App
-
-  - sliderbar on bottom with week ending?
-  - 3 tabs for case, test and perc pos.
-  - legend should have about 5 breaks?
-  - maybe a line graph as well for total cases in another tab?
-  - total death count? Hosp count?
-  - possibly graduated symbology?
-
 
