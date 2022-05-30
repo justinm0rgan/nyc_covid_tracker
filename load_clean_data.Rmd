@@ -149,7 +149,6 @@ all_sf <-geo_join(modzcta, all,
 all_sf$week_ending <- as.Date(all_sf$week_ending, format = "%m/%d/%Y")
 ```
 
-
 **latest**
 *Latest Data by Zip Code*
 Could be used for Percent Positive (7-day), Test Rate (7-day), Hosp (28-day) and Death Rate (28-day) choropleth maps. Drop down within tab?
@@ -160,7 +159,7 @@ Could be used for Percent Positive (7-day), Test Rate (7-day), Hosp (28-day) and
 
 Let's join this to the spatial data so we can map it. Data is clean, needs no other modifications.
 
-```{r last-7-join-modzcta}
+```{r last-7-join-modzcta, warning=FALSE}
 # convert modzcta to char
 last7days$modzcta <- as.character(last7days$modzcta)
 #drop label
@@ -175,7 +174,7 @@ all_sf_7 <- geo_join(modzcta, last7days,
 
 Let's also join 28 day data with spatial data.
 
-```{r last-28-day-spatial}
+```{r last-28-day-spatial, warning=FALSE}
 # convert modzcta to char
 last28days$modzcta <- as.character(last28days$modzcta)
 #drop label
@@ -186,6 +185,50 @@ last28days <- last28days %>%
 all_sf_28 <- geo_join(modzcta, last28days, 
               "modzcta","modzcta",
               how = "inner")
+```
+
+#### Summary data
+*Summary Numbers*
+The idea is these number would be in a sidebar the entire time.
+Cases
+Deaths
+Date
+New Cases bar graph
+Cumulative cases line chart
+- `cases-by-day.csv` 
+  - would be good for bar graph detailing new cases.
+  - also works for cumulative line graph
+- `summary.csv` - the has total case counts and deaths
+
+Summary numbers
+
+```{r summary}
+#case count
+summary_totals[summary_totals$MEASURE == "NYC_TOTAL_CASE_COUNT",]$NUMBER_OF_NYC_RESIDENTS
+
+# death count
+summary_totals[summary_totals$MEASURE == "NYC_TOTAL_DEATH_COUNT",]$NUMBER_OF_NYC_RESIDENTS
+
+# date
+summary_totals[summary_totals$MEASURE == "DATE_UPDATED",]$NUMBER_OF_NYC_RESIDENTS
+```
+
+New Cases
+
+```{r new-cases}
+# convert date column to date format
+casesbyday$date_of_interest <- as.Date(casesbyday$date_of_interest, format = "%m/%d/%Y")
+
+# get past 6 months
+six_months <- max(casesbyday$date_of_interest) - 180
+
+# segment df for only past 6 months
+casesbyday_6_mon <- casesbyday[casesbyday$date_of_interest >= six_months,]
+```
+
+Cumulative cases
+```{r cumulative-cases}
+
 ```
 
 ### Leaflet map 
