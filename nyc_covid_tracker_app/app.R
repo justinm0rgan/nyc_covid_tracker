@@ -12,9 +12,14 @@ library(tidyverse)
 library(leaflet)
 library(htmlwidgets)
 library(BAMMtools)
+library(htmltools)
 
 setwd("/Users/justinwilliams/projects/nyc_covid_tracker/nyc_covid_tracker_app/")
 all_sf <- readRDS("all_sf.rds")
+
+# define map start point
+start_point <- as.Date("2022-01-01",
+                       format = "%Y-%m-%d")
 
 # Define UI for application 
 ui <- fluidPage(
@@ -22,28 +27,36 @@ ui <- fluidPage(
     # Application title
     titlePanel("Covid-19 NYC Trends by Modified ZCTA 
                (August 2020 - present)"),
-    # Sidebar with date input 
+    # Sidebar with date input
     sidebarLayout(
         sidebarPanel(
-          tags$a(href="https://github.com/nychealth/coronavirus-data", 
+          tags$a(href="https://github.com/nychealth/coronavirus-data",
                  "Data Repository", target="_blank"),
           h5("Data is aggregated by week, seperated by week ending date.
              All data sourced from the NYC Department of Health."),
-            selectInput("date",
-                        "Select a date (week ending in):",
-                        choices = unique(all_sf$week_ending)
+            sliderInput(inputId = "date",
+                        label = "Select a date (week ending in):",
+                        min = as.Date(min(all_sf$week_ending)),
+                        max = as.Date(max(all_sf$week_ending)),
+                        value = start_point,
+                        step = 7,
+                        timeFormat = "%b %d-'%y"
+                        # choices = unique(all_sf$week_ending)
             )
         ),
         # define panels
         mainPanel(
           tabsetPanel(
-            tabPanel("Case Rate", leafletOutput("cases")),
-            tabPanel("Test Rate", leafletOutput("tests")),
-            tabPanel("Percent Positive", leafletOutput("pctpos"))
+            tabPanel("Case Rate", leafletOutput(outputId = "cases",
+                                                height = 450)),
+            tabPanel("Test Rate", leafletOutput(outputId = "tests",
+                                                height = 450)),
+            tabPanel("Percent Positive", leafletOutput(outputId = "pctpos",
+                                                       height = 450))
           )
         )
     )
-  )
+)
 # Define server logic required to draw maps
 server <- function(input, output) {
   
@@ -54,7 +67,7 @@ server <- function(input, output) {
 
   output$cases <- renderLeaflet({
     # set bins
-    bins <- getJenksBreaks(all_sf$caserate, 10) # get natural breaks
+    bins <- getJenksBreaks(all_sf$caserate, 9) # get natural breaks
     bins <- map(.x = bins, round) %>% 
       unlist() # round
     
@@ -65,9 +78,10 @@ server <- function(input, output) {
     
     # set labels
     labels <- sprintf(
-      "<strong>%s</strong><br/>%g cases per 100,000 people",
-      week_zcta()$MODZCTA, round(week_zcta()$caserate)) %>% 
-      lapply(htmltools::HTML)
+      "<h5>%s</h5><br/><strong>Zip Code: </strong>%s<br/><strong>Cases per 100,000 people: </strong>%g ",
+      week_zcta()$modzcta_name,
+      week_zcta()$label, round(week_zcta()$caserate)) %>% 
+      lapply(HTML)
     
     week_zcta() %>% 
       st_transform(4326) %>% 
@@ -95,9 +109,9 @@ server <- function(input, output) {
   
   output$tests <- renderLeaflet({
     # set bins
-    bins <- getJenksBreaks(all_sf$testrate, 10) # get natural breaks
-    bins <- map(.x = bins, round) %>% 
-      unlist() # round
+    bins <- getJenksBreaks(all_sf$testrate, 9) # get natural breaks
+    bins <- map(.x = bins, round) %>%
+      unlist()# round
     
     # set color palette
     pal <- colorBin(palette = "YlGn",
@@ -106,9 +120,10 @@ server <- function(input, output) {
     
     # set labels
     labels <- sprintf(
-      "<strong>%s</strong><br/>%g cases per 100,000 people",
-      week_zcta()$MODZCTA, round(week_zcta()$testrate)) %>% 
-      lapply(htmltools::HTML)
+      "<h5>%s</h5><br/><strong>Zip Code: </strong>%s<br/><strong>Positive Tests per 100,000 people: </strong>%g ",
+      week_zcta()$modzcta_name,
+      week_zcta()$label, round(week_zcta()$caserate)) %>% 
+      lapply(HTML)
     
     week_zcta() %>% 
       st_transform(4326) %>% 
@@ -136,7 +151,7 @@ server <- function(input, output) {
   
   output$pctpos <- renderLeaflet({
     # set bins
-    bins <- getJenksBreaks(all_sf$percpos, 10) # get natural breaks
+    bins <- getJenksBreaks(all_sf$percpos, 9) # get natural breaks
     bins <- map(.x = bins, round) %>% 
       unlist() # round
     
@@ -147,9 +162,10 @@ server <- function(input, output) {
     
     # set labels
     labels <- sprintf(
-      "<strong>%s</strong><br/>%g cases per 100,000 people",
-      week_zcta()$MODZCTA, round(week_zcta()$percpos)) %>% 
-      lapply(htmltools::HTML)
+      "<h5>%s</h5><br/><strong>Zip Code: </strong>%s<br/><strong>Count of Positive Test results: </strong>%g ",
+      week_zcta()$modzcta_name,
+      week_zcta()$label, round(week_zcta()$caserate)) %>% 
+      lapply(HTML)
     
     week_zcta() %>% 
       st_transform(4326) %>% 
@@ -170,8 +186,9 @@ server <- function(input, output) {
       addLegend("bottomright",
                 pal = pal,
                 values = ~percpos,
-                title = "% Positive per 100,000",
-                opacity = 0.7)
+                title = "% Positive of<br>people tested",
+                opacity = 0.7,
+                labFormat = labelFormat(suffix = "%"))
   })
 }
 
