@@ -149,6 +149,10 @@ all_sf <-geo_join(modzcta, all,
 
 # convert week ending column to date
 all_sf$week_ending <- as.Date(all_sf$week_ending, format = "%m/%d/%Y")
+
+# sort by date to have most current date first
+all_sf <- all_sf %>% 
+  arrange(desc(week_ending))
 ```
 
 **latest**
@@ -442,13 +446,28 @@ leaflet_map
 ### Export data 
 
 Export data frames for use in Shiny App.
+First get list
+
+```{r df-list}
+Filter(function(x) is(x, "data.frame"), mget(ls()))
+```
+
+Create list of df to export then loop through and export to app folder.
 
 ```{r export-data}
-# sort with by date to have most current date first
-all_sf <- all_sf %>% 
-  arrange(desc(week_ending))
+# list of df
+df_export <- c("all_sf",
+               "all_sf_28",
+               "all_sf_7",
+               "casesbyday_6_mon",
+               "casesbyday_cum",
+               "summary_totals")
 
 # save for use in shiny app
-saveRDS(all_sf, file = "./nyc_covid_tracker_app/all_sf.rds")
+for (i in 1:length(df_export)) {
+  savefile <- paste0(paste0("nyc_covid_tracker_app/", df_export[i], ".Rds"))
+  saveRDS(get(df_export[i]), file = savefile)
+  print(paste("Dataframe Saved: ", df_export[i]))
+}
 ```
 
