@@ -358,8 +358,11 @@ leaflet_map <- all_sf_jan_01_22 %>%
             title = "Cases per 100,000",
             opacity = 0.7)
 
-
+mapview::mapshot(leaflet_map,
+                 file = "./images/cases_draft_map.png")
 leaflet_map
+
+all_sf_jan_01_22
 ```
 
 #### Latest Data maps
