@@ -16,8 +16,8 @@ library(BAMMtools)
 library(htmltools)
 library(scales)
 
-# set working directory
-setwd("/Users/justinwilliams/projects/nyc_covid_tracker/nyc_covid_tracker_app/")
+# # set working directory
+# setwd("/Users/justinwilliams/projects/nyc_covid_tracker/nyc_covid_tracker_app/")
 
 # read in df's
 all_sf <- readRDS("all_sf.rds")
@@ -43,6 +43,7 @@ death_count <-
 current_date <- 
   summary_totals[summary_totals$MEASURE == 
                    "DATE_UPDATED",]$NUMBER_OF_NYC_RESIDENTS
+
 
 # Define UI for application 
 ui <- fluidPage(
@@ -139,26 +140,26 @@ server <- function(input, output) {
   output$cases <- renderLeaflet( {
     # set bins
     bins <- getJenksBreaks(all_sf$caserate, 10) # get natural breaks
-    bins <- map(.x = bins, round) %>% 
+    bins <- map(.x = bins, round) %>%
       unlist() # round
-    
+
     # set color palette
     pal <- colorBin(palette = "PuBu",
-                    bins = bins, 
+                    bins = bins,
                     domain = all_sf$caserate)
-    
+
     # set labels
     labels <- sprintf(
       "<h5>%s</h5><br/><strong>Zip Code: </strong>%s<br/><strong>Cases per 100,000 people: </strong>%g ",
       week_zcta()$modzcta_name,
-      week_zcta()$label, round(week_zcta()$caserate)) %>% 
+      week_zcta()$label, round(week_zcta()$caserate)) %>%
       lapply(HTML)
-    
-    week_zcta() %>% 
-      st_transform(4326) %>% 
+
+    week_zcta() %>%
+      st_transform(4326) %>%
       leaflet() %>%
-      setView(lng = -73.9,lat = 40.705,zoom = 10) %>% 
-      addProviderTiles(providers$CartoDB.Positron) %>% 
+      setView(lng = -73.9,lat = 40.705,zoom = 10) %>%
+      addProviderTiles(providers$CartoDB.Positron) %>%
       addPolygons(label = labels,
                   weight = 0.25,
                   color = "white",
@@ -169,13 +170,13 @@ server <- function(input, output) {
                   highlightOptions = highlightOptions(weight = 1,
                                                       color = "#666",
                                                       fillOpacity = 0.7,
-                                                      bringToFront = T)) %>% 
+                                                      bringToFront = T)) %>%
       addLegend("bottomright",
                 pal = pal,
                 values = ~caserate,
                 title = "Cases per 100,000",
                 opacity = 0.7)
-    
+
   })
   
   output$tests <- renderLeaflet({
@@ -193,7 +194,7 @@ server <- function(input, output) {
     labels <- sprintf(
       "<h5>%s</h5><br/><strong>Zip Code: </strong>%s<br/><strong>Positive Tests per 100,000 people: </strong>%g ",
       week_zcta()$modzcta_name,
-      week_zcta()$label, round(week_zcta()$caserate)) %>% 
+      week_zcta()$label, round(week_zcta()$testrate)) %>% 
       lapply(HTML)
     
     week_zcta() %>% 
@@ -235,7 +236,7 @@ server <- function(input, output) {
     labels <- sprintf(
       "<h5>%s</h5><br/><strong>Zip Code: </strong>%s<br/><strong>Count of Positive Test results: </strong>%g ",
       week_zcta()$modzcta_name,
-      week_zcta()$label, round(week_zcta()$caserate)) %>% 
+      week_zcta()$label, round(week_zcta()$percpos)) %>% 
       lapply(HTML)
     
     week_zcta() %>% 
@@ -265,3 +266,6 @@ server <- function(input, output) {
 
 # Run the application 
 shinyApp(ui = ui, server = server)
+# shinyApp(ui, server)
+# library(rsconnect)
+# deployApp(account="justinm0rgan")
