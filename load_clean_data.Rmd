@@ -256,6 +256,24 @@ casesbyday_6_mon %>%
           plot.title = element_text(hjust = 0.5, size = 18),
           axis.text = element_text(size = 10))
 ```
+Cases since inception
+
+```{r cases-since--inception}
+casesbyday %>% 
+  ggplot(aes(date_of_interest, CASE_COUNT)) +
+    geom_bar(stat = "identity") +
+    scale_y_continuous(labels = number_format(scale = .0001,
+                                              suffix = "k")) +
+    scale_x_date(date_breaks = "3 month",
+                 date_labels = "%b-'%y") +
+    labs(y = "", x = "", 
+         title = "Case Count by Day Last 6 Months") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1),
+          plot.title.position = "plot",
+          plot.title = element_text(hjust = 0.5, size = 18),
+          axis.text = element_text(size = 10))
+```
 
 
 Cumulative cases
@@ -285,7 +303,6 @@ casesbyday_cum %>%
           plot.title.position = "plot",
           plot.title = element_text(hjust = 0.5, size = 18),
           axis.text = element_text(size = 10))
-
 
 ```
 
