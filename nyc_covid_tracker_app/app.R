@@ -15,6 +15,7 @@ library(htmlwidgets)
 library(BAMMtools)
 library(htmltools)
 library(scales)
+library(rsconnect)
 
 # # set working directory
 # setwd("/Users/justinwilliams/projects/nyc_covid_tracker/nyc_covid_tracker_app/")
@@ -62,8 +63,8 @@ ui <- fluidPage(
           span(h4(paste0(prettyNum(death_count, big.mark = ",")," deaths")),  
              align = "right", style="color:#045a8d"),
           span(h6(prettyNum(current_date)), align = "right"),
-          plotOutput("case_count", height="200px", width="100%"),
-          plotOutput("cumulative", height="200px", width="100%"),
+          plotOutput("case_count", height="145px", width="100%"),
+          plotOutput("cumulative", height="145px", width="100%"),
           sliderInput(inputId = "date",
                     label = "Select mapping date (week ending in):",
                     min = as.Date(min(all_sf$week_ending)),
@@ -126,6 +127,8 @@ server <- function(input, output) {
     (casesbyday_cum_plot <- casesbyday_cum %>% 
       ggplot(aes(date, case_cum)) +
       geom_line(lwd = 2, alpha = 0.8) +
+      geom_point(aes(x = as.Date('2022-01-01'), y = 1000000), 
+                 size = 3, color = 'Red') +
       scale_y_continuous(labels = number_format(scale = .0001,
                                                 suffix = "k")) +
       scale_x_date(date_breaks = "2 month",
@@ -266,6 +269,7 @@ server <- function(input, output) {
 
 # Run the application 
 shinyApp(ui = ui, server = server)
-# shinyApp(ui, server)
-# library(rsconnect)
-# deployApp(account="justinm0rgan")
+#shinyApp(ui, server)
+#deployApp(account="justinm0rgan")
+
+
