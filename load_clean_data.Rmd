@@ -293,6 +293,8 @@ Cumulative cases line plot
 casesbyday_cum %>% 
   ggplot(aes(date, case_cum)) +
     geom_line(lwd = 2) +
+    geom_point(
+      aes(x = as.Date('2022-01-01'), y = 1000000), size = 3, color = 'Red') +
     scale_y_continuous(labels = number_format(scale = .0001,
                                               suffix = "k")) +
     scale_x_date(date_breaks = "3 month",
