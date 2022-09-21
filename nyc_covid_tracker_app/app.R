@@ -127,8 +127,9 @@ server <- function(input, output) {
     (casesbyday_cum_plot <- casesbyday_cum %>% 
       ggplot(aes(date, case_cum)) +
       geom_line(lwd = 2, alpha = 0.8) +
-      geom_point(aes(x = as.Date('2022-01-01'), y = 1000000), 
-                 size = 3, color = 'Red') +
+      geom_point(aes(casesbyday_cum[casesbyday_cum$date == input$date,]$date,
+                    casesbyday_cum[casesbyday_cum$date == input$date,]$case_cum),
+                  color = "#A63446", size = 3, alpha = 0.8) +
       scale_y_continuous(labels = number_format(scale = .0001,
                                                 suffix = "k")) +
       scale_x_date(date_breaks = "2 month",
