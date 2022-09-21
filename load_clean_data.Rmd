@@ -27,8 +27,8 @@ library(dotenv)
 Set working directory
 
 ```{r setwd}
-#setwd("/Users/justinwilliams/projects/nyc_covid_tracker")
-setwd("C:/Users/jtws/OneDrive - IKEA/Projects/nyc_covid_tracker")
+setwd("/Users/justinwilliams/projects/nyc_covid_tracker")
+# setwd("C:/Users/jtws/OneDrive - IKEA/Projects/nyc_covid_tracker")
 ```
 
 ## Load in Covid data.
